@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Minesweeper - Windows 3.1</title>
+<style>
+body {
+  background-color: #008080;
+  font-family: "MS Sans Serif", sans-serif;
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+.window {
+  background: #c0c0c0;
+  border: 2px solid #fff;
+  box-shadow: inset -2px -2px #808080, inset 2px 2px #fff;
+  padding: 4px;
+}
+.title-bar {
+  background: linear-gradient(#000080, #0000a0);
+  color: white;
+  font-weight: bold;
+  padding: 3px 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+.title-buttons {
+  display: flex;
+  gap: 2px;
+}
+.btn {
+  background: #c0c0c0;
+  border: 1px solid #fff;
+  box-shadow: inset -1px -1px #808080, inset 1px 1px #fff;
+  width: 16px;
+  height: 14px;
+  text-align: center;
+  font-weight: bold;
+  line-height: 12px;
+  color: black;
+  cursor: pointer;
+}
+.menu-bar {
+  background: #c0c0c0;
+  border-top: 2px solid #fff;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #808080;
+  border-right: 2px solid #808080;
+  padding: 2px 6px;
+  font-size: 13px;
+}
+.board {
+  display: grid;
+  margin: 10px;
+  background: #808080;
+  padding: 3px;
+  box-shadow: inset 2px 2px #fff, inset -2px -2px #404040;
+}
+.cell {
+  width: 22px;
+  height: 22px;
+  background: #c0c0c0;
+  border-top: 2px solid #fff;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #808080;
+  border-right: 2px solid #808080;
+  text-align: center;
+  font-weight: bold;
+  font-size: 14px;
+  user-select: none;
+}
+.cell.open {
+  border: 1px solid #808080;
+  background: #c0c0c0;
+}
+.cell.mine::before {
+  content: "💣";
+}
+.cell.flag::before {
+  content: "🚩";
+}
+.status-bar {
+  background: #c0c0c0;
+  border-top: 2px solid #fff;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #808080;
+  border-right: 2px solid #808080;
+  padding: 2px 6px;
+  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+}
+</style>
+</head>
+<body>
+<div class="window">
+  <div class="title-bar">
+    <span>Minesweeper</span>
+    <div class="title-buttons">
+      <div class="btn">_</div>
+      <div class="btn">□</div>
+      <div class="btn">X</div>
+    </div>
+  </div>
+  <div class="menu-bar">Game   Help</div>
+  <div class="board" id="board"></div>
+  <div class="status-bar">
+    <span id="mineCount">💣 Mines: 10</span>
+    <span id="statusText">🙂 Good luck!</span>
+  </div>
+</div>
+
+<script>
+const width = 9, height = 9, mines = 10;
+const boardEl = document.getElementById("board");
+boardEl.style.gridTemplateColumns = `repeat(${width}, 22px)`;
+const mineCountEl = document.getElementById("mineCount");
+const statusEl = document.getElementById("statusText");
+
+let board = [], gameOver = false;
+
+function init() {
+  board = [];
+  boardEl.innerHTML = "";
+  gameOver = false;
+  statusEl.textContent = "🙂 Good luck!";
+  mineCountEl.textContent = "💣 Mines: " + mines;
+
+  for (let y = 0; y < height; y++) {
+    board[y] = [];
+    for (let x = 0; x < width; x++) {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      cell.dataset.x = x;
+      cell.dataset.y = y;
+      cell.addEventListener("click", leftClick);
+      cell.addEventListener("contextmenu", rightClick);
+      boardEl.appendChild(cell);
+      board[y][x] = { mine: false, open: false, flag: false, el: cell };
+    }
+  }
+
+  let placed = 0;
+  while (placed < mines) {
+    let rx = Math.floor(Math.random() * width);
+    let ry = Math.floor(Math.random() * height);
+    if (!board[ry][rx].mine) {
+      board[ry][rx].mine = true;
+      placed++;
+    }
+  }
+}
+
+function leftClick(e) {
+  if (gameOver) return;
+  const x = +e.target.dataset.x, y = +e.target.dataset.y;
+  openCell(x, y);
+  checkWin();
+}
+
+function rightClick(e) {
+  e.preventDefault();
+  if (gameOver) return;
+  const x = +e.target.dataset.x, y = +e.target.dataset.y;
+  const cell = board[y][x];
+  if (!cell.open) {
+    cell.flag = !cell.flag;
+    cell.el.classList.toggle("flag", cell.flag);
+  }
+}
+
+function openCell(x, y) {
+  const cell = board[y][x];
+  if (cell.open || cell.flag) return;
+  cell.open = true;
+  cell.el.classList.add("open");
+  if (cell.mine) {
+    cell.el.classList.add("mine");
+    gameOver = true;
+    statusEl.textContent = "💀 Game Over!";
+    revealAll();
+    return;
+  }
+  const count = countMines(x, y);
+  if (count > 0) {
+    cell.el.textContent = count;
+    cell.el.style.color = ["#0000ff","#008200","#ff0000","#000084","#840000","#008284","#840084","#000000"][count-1];
+  } else {
+    for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++) {
+      if (dx||dy) {
+        const nx=x+dx, ny=y+dy;
+        if (ny>=0 && ny<height && nx>=0 && nx<width) openCell(nx,ny);
+      }
+    }
+  }
+}
+
+function countMines(x, y) {
+  let c=0;
+  for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++) {
+    const nx=x+dx, ny=y+dy;
+    if (nx>=0 && nx<width && ny>=0 && ny<height && board[ny][nx].mine) c++;
+  }
+  return c;
+}
+
+function revealAll() {
+  for (let y=0;y<height;y++) for (let x=0;x<width;x++) {
+    const cell = board[y][x];
+    if (cell.mine) cell.el.classList.add("mine");
+  }
+}
+
+function checkWin() {
+  let closed = 0;
+  for (let y=0;y<height;y++) for (let x=0;x<width;x++) {
+    if (!board[y][x].open && !board[y][x].mine) closed++;
+  }
+  if (closed === 0 && !gameOver) {
+    statusEl.textContent = "🎉 You win!";
+    gameOver = true;
+  }
+}
+
+init();
+</script>
+</body>
+</html>
